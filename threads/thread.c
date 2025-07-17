@@ -79,7 +79,7 @@ static bool compare_thread_wakeup_tick(struct list_elem *a, struct list_elem *b,
 void thread_sleep(int64_t wakeup_tick);
 void thread_wake(int64_t ticks);
 
-static bool compare_thread_priority(struct list_elem *a, struct list_elem *b, void *aux);
+bool compare_thread_priority(struct list_elem *a, struct list_elem *b, void *aux);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -225,6 +225,10 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
+
+	/* 생성한 스레드가 자기보다 우선순위가 높은 경우 점유 반환 */
+	if (t->priority > thread_current()->priority)
+		thread_yield();
 
 	return tid;
 }
@@ -386,7 +390,7 @@ void thread_wake(int64_t ticks){
 /* list_insert_ordered 사용 시 우선순위 비교를 위한 compare 함수
  * 스레드 unblock, yield 시 우선순위 고려 필요
  */
-static bool compare_thread_priority(struct list_elem *a, struct list_elem *b, void *aux){
+bool compare_thread_priority(struct list_elem *a, struct list_elem *b, void *aux){
 	struct thread *thread_a = list_entry(a, struct thread, elem);
 	struct thread *thread_b = list_entry(b, struct thread, elem);
 	return thread_a->priority > thread_b->priority;
@@ -396,6 +400,9 @@ static bool compare_thread_priority(struct list_elem *a, struct list_elem *b, vo
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+
+	/* 우선순위 변화를 반영하기 위해 일단 점유 반환(다시 확인 필요) */
+	thread_yield();
 }
 
 /* Returns the current thread's priority. */
